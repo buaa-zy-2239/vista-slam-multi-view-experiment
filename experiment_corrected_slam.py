@@ -309,13 +309,16 @@ def run_slam(cfg, image_paths=None, gt_path=None, dataset_folder=None,
         if use_gnc:
             # GNC 模式：禁止 step() 内部的标准 PGO
             slam.step(input_value, force_pgo=False)
-            if is_last:
-                print_msg(f"  [{mode}] 最终 GNC 优化 (keyframe {slam.view_num})...",
+            # 与 Standard PGO 相同的触发频率：每 pgo_every 关键帧 + 最后
+            pgo_trigger = (slam.view_num > 0 and
+                           slam.view_num % slam.pgo_every == 0) or is_last
+            if pgo_trigger:
+                print_msg(f"  [{mode}] GNC 优化 (keyframe {slam.view_num})...",
                           color=FontColor.INFO)
                 try:
                     gnc_pose_graph_optimize(slam, max_iterations=30)
                 except Exception as e:
-                    print_msg(f"  GNC 优化跳过（兼容性）: {type(e).__name__}: {e}",
+                    print_msg(f"  GNC 优化跳过: {type(e).__name__}: {e}",
                               color=FontColor.WARNING)
                 torch.cuda.empty_cache()
         else:
@@ -328,16 +331,6 @@ def run_slam(cfg, image_paths=None, gt_path=None, dataset_folder=None,
         if (idx + 1) % 20 == 0 or is_last:
             print_msg(f"  [{mode}] 已处理 {idx+1}/{len(keyframe_indices)} 关键帧 "
                       f"(view_num={slam.view_num})", color=FontColor.INFO)
-
-    # 确保最终优化
-    if use_gnc and slam.view_num > 1:
-        print_msg(f"  [{mode}] 最终 GNC 优化...", color=FontColor.INFO)
-        try:
-            gnc_pose_graph_optimize(slam, max_iterations=30)
-        except Exception as e:
-            print_msg(f"  GNC 优化跳过（兼容性）: {type(e).__name__}: {e}",
-                      color=FontColor.WARNING)
-        torch.cuda.empty_cache()
 
     t_elapsed = time.time() - t_start
 
