@@ -4,6 +4,7 @@
 # 无需训练，纯算法改进，可量化ATE评估
 # =========================================================
 import torch
+import torch.nn as nn
 import numpy as np
 import time, os, sys, glob, argparse
 from pathlib import Path
@@ -145,7 +146,7 @@ def robust_pose_graph_optimize(slam, num_iterations=5, kernel='tukey'):
                     new_weights[:, d] = new_weights[:, d] * robust_weights
 
 
-class PoseGraphOptIR(pp.nn.Module):
+class PoseGraphOptIR(nn.Module):
     """可重复使用的位姿图优化器（与PoseGraphOpt逻辑相同，但不处理fixed节点缓存问题）"""
     def __init__(self, nodes, to_optimize_idxs="all"):
         super().__init__()
