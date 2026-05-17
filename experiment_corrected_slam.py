@@ -112,11 +112,20 @@ def gnc_pose_graph_optimize(slam, max_iterations=30, mu_init=1e-4, mu_max=1e4,
     device = slam.device
     mu = mu_init
 
+    # 滑动窗口：只优化最近 pgo_window_size 帧的节点（与 slam.py 一致）
+    pgo_window = getattr(slam, 'pgo_window_size', 200)
+    start_view = max(0, slam.view_num - pgo_window)
+    last_view = slam.view_num - 1
+
     for iteration in range(max_iterations):
+        torch.cuda.empty_cache()
+
         opt_node_idxs = set()
-        for v in range(slam.view_num):
+        for v in range(start_view, last_view + 1):
             opt_node_idxs.update(slam.pose_graph_nodes.view_to_node[v])
         opt_node_idxs.update(getattr(slam, 'loop_related_views', set()))
+        if len(opt_node_idxs) < 2:
+            continue
         opt_node_idxs = torch.tensor(sorted(list(opt_node_idxs)), device=device)
 
         graph = PoseGraphOpt(
@@ -269,18 +278,8 @@ def run_slam(cfg, image_paths=None, gt_path=None, dataset_folder=None,
         conf_thres=cfg.point_conf_thres,
         rel_pose_thres=cfg.rel_pose_thres,
         flow_thres=cfg.flow_thres,
-        pgo_every=min(cfg.pgo_every, 100)  # 降低 pgo_every 避免一次性优化过多节点
+        pgo_every=min(cfg.pgo_every, 100)
     )
-
-    # 【兼容性补丁】PyTorch 2.12 + pypose jacobian 兼容性修复
-    _original_optimize = slam.pose_graph_optimize
-    def _safe_pose_graph_optimize(*a, **kw):
-        try:
-            _original_optimize(*a, **kw)
-        except Exception as e:
-            print_msg(f"  PGO 跳过（兼容性）: {type(e).__name__}: {e}",
-                      color=FontColor.WARNING)
-    slam.pose_graph_optimize = _safe_pose_graph_optimize
 
     # ---------- 主体循环 ----------
     t_start = time.time()
