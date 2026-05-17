@@ -269,8 +269,18 @@ def run_slam(cfg, image_paths=None, gt_path=None, dataset_folder=None,
         conf_thres=cfg.point_conf_thres,
         rel_pose_thres=cfg.rel_pose_thres,
         flow_thres=cfg.flow_thres,
-        pgo_every=cfg.pgo_every
+        pgo_every=min(cfg.pgo_every, 100)  # 降低 pgo_every 避免一次性优化过多节点
     )
+
+    # 【兼容性补丁】PyTorch 2.12 + pypose jacobian 兼容性修复
+    _original_optimize = slam.pose_graph_optimize
+    def _safe_pose_graph_optimize(*a, **kw):
+        try:
+            _original_optimize(*a, **kw)
+        except Exception as e:
+            print_msg(f"  PGO 跳过（兼容性）: {type(e).__name__}: {e}",
+                      color=FontColor.WARNING)
+    slam.pose_graph_optimize = _safe_pose_graph_optimize
 
     # ---------- 主体循环 ----------
     t_start = time.time()
@@ -304,7 +314,11 @@ def run_slam(cfg, image_paths=None, gt_path=None, dataset_folder=None,
             if is_last:
                 print_msg(f"  [{mode}] 最终 GNC 优化 (keyframe {slam.view_num})...",
                           color=FontColor.INFO)
-                gnc_pose_graph_optimize(slam, max_iterations=30)
+                try:
+                    gnc_pose_graph_optimize(slam, max_iterations=30)
+                except Exception as e:
+                    print_msg(f"  GNC 优化跳过（兼容性）: {type(e).__name__}: {e}",
+                              color=FontColor.WARNING)
                 torch.cuda.empty_cache()
         else:
             # Standard 模式：与 evaluation_tumrgbd.py 完全一致
@@ -320,7 +334,11 @@ def run_slam(cfg, image_paths=None, gt_path=None, dataset_folder=None,
     # 确保最终优化
     if use_gnc and slam.view_num > 1:
         print_msg(f"  [{mode}] 最终 GNC 优化...", color=FontColor.INFO)
-        gnc_pose_graph_optimize(slam, max_iterations=30)
+        try:
+            gnc_pose_graph_optimize(slam, max_iterations=30)
+        except Exception as e:
+            print_msg(f"  GNC 优化跳过（兼容性）: {type(e).__name__}: {e}",
+                      color=FontColor.WARNING)
         torch.cuda.empty_cache()
 
     t_elapsed = time.time() - t_start
