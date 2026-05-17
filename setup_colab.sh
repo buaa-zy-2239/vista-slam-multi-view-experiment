@@ -14,13 +14,34 @@ echo "========================================"
 
 # 1. 安装依赖
 echo ""
-echo "[1/4] Installing Python dependencies..."
-pip install -q torchvision xformers pypose munch einops opencv-python-headless scipy colorama
+echo "[1/5] Installing Python dependencies..."
+pip install -q torchvision xformers pypose munch einops opencv-python-headless scipy colorama pandas
+
+# 构建 DBoW3Py（回环检测组件）
+echo ""
+echo "[1b/5] Building DBoW3Py (loop detection)..."
+if [ -d DBoW3Py ]; then
+    echo "  DBoW3Py directory found, building..."
+    cd DBoW3Py && pip install -q --no-build-isolation . && cd ..
+    echo "  Done."
+else
+    echo "  DBoW3Py directory not found (not a submodule)."
+    echo "  Attempting to clone..."
+    git clone --depth 1 https://github.com/dorian3d/DBoW3.git dbow3_clone 2>/dev/null
+    if [ -d dbow3_clone ]; then
+        cp -r dbow3_clone DBoW3Py
+        cd DBoW3Py && pip install -q --no-build-isolation . && cd ..
+        rm -rf dbow3_clone
+        echo "  Done."
+    else
+        echo "  Will use fallback (simulated loop detection)."
+    fi
+fi
 echo "  Done."
 
 # 2. 预训练权重
 echo ""
-echo "[2/4] Downloading pretrained weights..."
+echo "[2/5] Downloading pretrained weights..."
 mkdir -p pretrains
 
 WEIGHT_URL="https://huggingface.co/zhangganlin/vista_slam/resolve/main/frontend_sta_weights.pth?download=true"
@@ -43,7 +64,7 @@ echo "  Done."
 
 # 3. 验证
 echo ""
-echo "[3/4] Verifying files..."
+echo "[3/5] Verifying files..."
 python3 -c "
 import os
 files = [
@@ -64,7 +85,7 @@ echo "  Done."
 
 # 4. 检查 CUDA
 echo ""
-echo "[4/4] Checking CUDA..."
+echo "[4/5] Checking CUDA..."
 python3 -c "
 import torch
 print(f'  PyTorch: {torch.__version__}')

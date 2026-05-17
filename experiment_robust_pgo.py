@@ -24,10 +24,50 @@ for _ in range(4):
         continue
     break
 
-from vista_slam.slam import OnlineSLAM
 from vista_slam.utils.slam_utils import FontColor, print_msg
 import pypose as pp
 from scipy.spatial.transform import Rotation
+
+
+# ============================================================
+# 【模块级补丁】在导入 slam 前，先处理 DBoW3 缺失问题
+# ============================================================
+def _patch_dbow3():
+    """如果 DBoW3Py 不可用，替换回环检测器为 dummy 实现"""
+    try:
+        import DBoW3Py
+        return  # 可用，无需补丁
+    except ImportError:
+        pass
+
+    import vista_slam.loop_detector as _ld
+    import vista_slam.slam as _slam
+
+    class _DummyVocab:
+        def load(self, *a, **kw): pass
+        def transform(self, *a, **kw): return None
+        def score(self, *a, **kw): return 0.0
+
+    class _DummyDetector:
+        def __init__(self, *a, **kw):
+            self.vocab = _DummyVocab()
+            self.bow_feats = []
+            self.loop_dist_min = 40
+            self.loop_nms = 40
+            self.loop_cand_thresh_neighbor = 5
+            self.orb = None
+        def compute_bow_feat(self, *a): return None
+        def detect_loop(self, *a, **kw): return []
+
+    _ld.LoopDetector = _DummyDetector
+    _slam.LoopDetector = _DummyDetector
+    print_msg("[Patch] DBoW3Py unavailable, using dummy loop detector", color=FontColor.INFO)
+
+
+_patch_dbow3()
+# ============================================================
+
+from vista_slam.slam import OnlineSLAM
 
 
 # ============================================================
@@ -294,30 +334,6 @@ def run_slam_and_evaluate(rgb_path, gt_path, timestamps_path,
     返回: (poses, ate, per_frame_errors)
     """
     from vista_slam.datasets.slam_images_only import SLAM_image_only
-
-    # 【兼容】如果 DBoW3 不可用，打补丁绕过回环检测
-    try:
-        import DBoW3Py
-        _dbow_ok = True
-    except ImportError:
-        _dbow_ok = False
-    if not _dbow_ok:
-        import vista_slam.loop_detector as _ld
-        class _DummyVocab:
-            def load(self, *a, **kw): pass
-            def transform(self, *a, **kw): return None
-            def score(self, *a, **kw): return 0.0
-        class _DummyDetector:
-            def __init__(self, *a, **kw):
-                self.vocab = _DummyVocab()
-                self.bow_feats = []
-                self.loop_dist_min = 40
-                self.loop_nms = 40
-                self.loop_cand_thresh_neighbor = 5
-                self.orb = None
-            def compute_bow_feat(self, *a): return None
-            def detect_loop(self, *a, **kw): return []
-        _ld.LoopDetector = _DummyDetector
 
     dataset = SLAM_image_only(sorted(glob.glob(rgb_path))[:max_frames],
                               resolution=(224, 224))
