@@ -188,7 +188,10 @@ def main():
     parser.add_argument("--images", type=str, default=None,
                         help="Glob to RGB images, e.g. 'rgbd_dataset_freiburg1_xyz/rgb/*.png' or local path")
     parser.add_argument("--ckpt", type=str, default="pretrains/frontend_sta_weights.pth")
-    parser.add_argument("--max-frames", type=int, default=3)
+    parser.add_argument("--max-frames", type=int, default=10,
+                        help="Number of frames to use (more frames = more drift accumulation)")
+    parser.add_argument("--mv-window", type=int, default=None,
+                        help="MV window size (default: max_frames-1 = full window)")
     parser.add_argument("--device", type=str, default="cpu")
     args = parser.parse_args()
 
@@ -230,7 +233,8 @@ def main():
     t_dv = time.time() - t0
 
     # ── MV 模式 ──
-    mv_window = min(args.max_frames - 1, 3)
+    mv_window = args.mv_window if args.mv_window is not None else (args.max_frames - 1)
+    mv_window = max(1, min(mv_window, args.max_frames - 1))
     print_msg("\n" + "=" * 60, color=FontColor.INFO)
     print_msg(f"[MV] connecting multi-view edges (window={mv_window})...",
               color=FontColor.INFO)
