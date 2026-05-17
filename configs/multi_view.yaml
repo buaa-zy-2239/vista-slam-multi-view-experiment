@@ -1,0 +1,14 @@
+# Multi-view settings for ViSTA-SLAM
+# These are additive parameters to the base config (default.yaml)
+
+multi_view:
+  enabled: false
+  window_size: 5
+  topology: "hierarchical"
+  enable_consistency_loss: false
+  enable_bundle_adjustment: false
+  gpu_memory_gb: 8.0
+  target_fps: 15
+  edge_threshold: 0.3
+  use_learned_weights: true
+  ba_iterations: 20
