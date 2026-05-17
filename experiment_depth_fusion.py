@@ -92,11 +92,16 @@ class MultiViewDepthFusion:
         self._make_grid()
 
     def _make_grid(self):
-        """生成像素坐标网格 [H, W, 2]"""
+        """生成像素坐标网格 [H, W, 2] 和归一化网格 [-1,1]"""
         u = torch.arange(self.W)
         v = torch.arange(self.H)
         uu, vv = torch.meshgrid(u, v, indexing='xy')
-        self.grid = torch.stack([uu, vv], dim=-1).float()  # [H, W, 2]
+        self.grid = torch.stack([uu, vv], dim=-1).float()
+        # grid_sample 需要的归一化坐标 [-1, 1]
+        self.grid_norm = torch.stack([
+            (uu.float() / (self.W - 1)) * 2 - 1,
+            (vv.float() / (self.H - 1)) * 2 - 1,
+        ], dim=-1)
 
     def project_depth_to_view(self, depth_src, pose_src, pose_tgt):
         """
@@ -176,12 +181,10 @@ class MultiViewDepthFusion:
 
             d_proj, valid = self.project_depth_to_view(n_depth, n_pose, ref_pose)
 
-            # 置信度传播
+            # 置信度传播（用归一化坐标）
             c_proj = F.grid_sample(
                 n_conf.unsqueeze(0).unsqueeze(0),
-                # grid_sample需要 [-1,1] 归一化坐标
-                torch.stack([(grid[..., 0] / (self.W - 1)) * 2 - 1,
-                             (grid[..., 1] / (self.H - 1)) * 2 - 1], dim=-1).unsqueeze(0).to(device),
+                self.grid_norm.unsqueeze(0).to(device),
                 mode='bilinear', align_corners=True
             ).squeeze()
 
@@ -292,31 +295,31 @@ def main():
     poses = torch.eye(4).unsqueeze(0).repeat(N, 1, 1)  # [N, 4, 4]
 
     for i in range(N - 1):
+        # 帧(i, i+1)预测 → 得到帧i的深度
         d, c, T = predict_pair(frontend, feats[i], poss[i],
                                 feats[i+1], poss[i+1],
                                 torch.tensor([[H, W]]))
         depths[i] = d
         confs[i] = c
-        # 位姿累积
+        # 位姿累积：T_ij = pose_j.inv() @ pose_i, 所以 pose_j = pose_i @ T_ij.inv()
         if i > 0:
             poses[i+1] = poses[i] @ T.inverse()
         else:
-            poses[1] = T.inverse()  # pose[0] = I
+            poses[1] = T.inverse()
 
-    # 最后一个帧的深度需要单独预测
-    d_last, c_last, _ = predict_pair(frontend, feats[N-2], poss[N-2],
-                                      feats[N-1], poss[N-1],
+    # 最后一帧的深度：用(N-1, N-2)对得到帧N-1的深度
+    d_last, c_last, _ = predict_pair(frontend, feats[N-1], poss[N-1],
+                                      feats[N-2], poss[N-2],
                                       torch.tensor([[H, W]]))
     depths[N-1] = d_last
     confs[N-1] = c_last
 
-    # 估计内参
-    from vista_slam.utils.slam_utils import estimate_intrinsic_from_pts3d
-    pts3d = torch.stack([depths * 0 for _ in range(3)], dim=-1)  # dummy
-    K = estimate_intrinsic_from_pts3d(pts3d.unsqueeze(1).repeat(1, 2, 1, 1, 1),
-                                       confs.unsqueeze(1).repeat(1, 2, 1, 1).reshape(-1, H, W),
-                                       shared_intrinsic=True)
-    print_msg(f"Estimated intrinsics: fx={K[0,0]:.1f}, fy={K[1,1]:.1f}",
+    # 估计内参（TUM fr1/xyz 已知 fx=517.3, fy=516.5, 但图像缩放到224需调整）
+    fx = fy = 224.0 * 517.3 / 640.0  # 原始640→224缩放
+    K = torch.tensor([[fx, 0, 112],
+                      [0, fy, 112],
+                      [0, 0, 1]], dtype=torch.float32)
+    print_msg(f"Intrinsics: fx={K[0,0]:.1f}, fy={K[1,1]:.1f}",
               color=FontColor.INFO)
 
     # ============================================================
