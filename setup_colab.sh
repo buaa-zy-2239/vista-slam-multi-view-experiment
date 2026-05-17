@@ -47,7 +47,7 @@ echo "[3/4] Verifying files..."
 python3 -c "
 import os
 files = [
-    'experiment_dv_vs_mv.py',
+    'experiment_robust_pgo.py',
     'vista_slam/multi_view_slam.py',
     'vista_slam/multi_view/__init__.py',
     'configs/multi_view.yaml',
