@@ -185,18 +185,32 @@ def run_single_experiment(ckpt_path, frames, device='cpu', neighbor_count=1):
 
 def main():
     parser = argparse.ArgumentParser(description="DV vs MV comparison (self-contained)")
-    parser.add_argument("--images", type=str,
-                        default="/home/zhang/ORB_SLAM_Learning/datasets/tum/rgbd_dataset_freiburg1_xyz/rgb/*.png",
-                        help="Glob to RGB images")
+    parser.add_argument("--images", type=str, default=None,
+                        help="Glob to RGB images, e.g. 'rgbd_dataset_freiburg1_xyz/rgb/*.png' or local path")
     parser.add_argument("--ckpt", type=str, default="pretrains/frontend_sta_weights.pth")
     parser.add_argument("--max-frames", type=int, default=3)
     parser.add_argument("--device", type=str, default="cpu")
     args = parser.parse_args()
 
     # 如果默认 pretrains 路径不存在，尝试其他常见位置
-    alt_ckpt = "/home/zhang/vista-slam/pretrains/frontend_sta_weights.pth"
+    alt_ckpt = "/content/vista-slam/pretrains/frontend_sta_weights.pth"
     if not os.path.exists(args.ckpt) and os.path.exists(alt_ckpt):
         args.ckpt = alt_ckpt
+
+    if args.images is None:
+        print_msg("No --images provided.", color=FontColor.WARNING)
+        print_msg("")
+        print_msg("  Please specify your dataset, for example:", color=FontColor.INFO)
+        print_msg("")
+        print_msg("  Using TUM RGB-D dataset:", color=FontColor.INFO)
+        print_msg("    wget -q https://vision.in.tum.de/rgbd/dataset/freiburg1/rgbd_dataset_freiburg1_xyz.tgz", color=FontColor.INFO)
+        print_msg("    tar -xzf rgbd_dataset_freiburg1_xyz.tgz", color=FontColor.INFO)
+        print_msg("    python3 experiment_dv_vs_mv.py --images 'rgbd_dataset_freiburg1_xyz/rgb/*.png'", color=FontColor.INFO)
+        print_msg("")
+        print_msg("  Or using your own images:", color=FontColor.INFO)
+        print_msg("    python3 experiment_dv_vs_mv.py --images '/path/to/your/images/*.png'", color=FontColor.INFO)
+        print_msg("")
+        sys.exit(1)
 
     if not os.path.exists(args.ckpt):
         print_msg(f"[WARNING] Weights not found at {args.ckpt}. "
