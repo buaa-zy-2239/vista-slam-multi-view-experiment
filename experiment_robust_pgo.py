@@ -45,6 +45,18 @@ def _patch_dbow3():
     if _dbow_ok:
         return
 
+    # loop_detector.py 在顶层 import DBoW3Py as dbow
+    # 需要在 import loop_detector 之前，在 sys.modules 中注入假模块
+    import sys
+    from types import ModuleType
+    _fake_dbow = ModuleType('DBoW3Py')
+    class _FakeVocab:
+        def load(self, *a, **kw): pass
+        def transform(self, *a, **kw): return None
+        def score(self, *a, **kw): return 0.0
+    _fake_dbow.Vocabulary = _FakeVocab
+    sys.modules['DBoW3Py'] = _fake_dbow
+
     import vista_slam.loop_detector as _ld
     import vista_slam.slam as _slam
 
