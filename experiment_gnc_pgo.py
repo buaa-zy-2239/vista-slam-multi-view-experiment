@@ -118,8 +118,8 @@ def gnc_pose_graph_optimize(slam, max_iterations=30, mu_init=1e-4, mu_max=1e4,
     """
     node_num = slam.pose_graph_nodes.num_nodes
     edge_num = slam.pose_graph_edges.num_edges
-    if edge_num == 0:
-        return
+    if edge_num < 2 or node_num < 2:
+        return mu_init
 
     device = slam.device
     mu = mu_init
