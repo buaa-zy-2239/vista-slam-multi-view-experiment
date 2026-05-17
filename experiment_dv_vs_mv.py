@@ -8,7 +8,24 @@ import numpy as np
 import time, os, sys, glob, argparse
 from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# 【路径修复】向上查找包含 vista_slam/utils/ 的父目录
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_vs_path = _script_dir
+for _ in range(4):
+    # 检查当前目录是否直接包含 vista_slam/utils/
+    if os.path.isdir(os.path.join(_vs_path, 'vista_slam', 'utils')):
+        sys.path.insert(0, _vs_path)
+        break
+    # 检查当前目录下是否有子目录包含 vista_slam/utils/
+    # 处理 git clone 目录名为 vista-slam 的情况
+    for _sub in os.listdir(_vs_path) if os.path.isdir(_vs_path) else []:
+        if os.path.isdir(os.path.join(_vs_path, _sub, 'vista_slam', 'utils')):
+            sys.path.insert(0, os.path.join(_vs_path, _sub))
+            break
+    else:
+        _vs_path = os.path.dirname(_vs_path)
+        continue
+    break
 
 # ------ 直接用 SLAM 模型，跳过数据集依赖 ------
 from vista_slam.utils.slam_utils import (

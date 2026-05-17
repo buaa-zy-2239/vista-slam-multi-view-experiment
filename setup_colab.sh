@@ -15,7 +15,7 @@ echo "========================================"
 # 1. 安装依赖
 echo ""
 echo "[1/4] Installing Python dependencies..."
-pip install -q torchvision xformers pypose munch einops opencv-python-headless scipy
+pip install -q torchvision xformers pypose munch einops opencv-python-headless scipy colorama
 echo "  Done."
 
 # 2. 预训练权重
