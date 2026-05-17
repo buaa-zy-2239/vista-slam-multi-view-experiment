@@ -15,26 +15,33 @@ echo "========================================"
 # 1. 安装依赖
 echo ""
 echo "[1/5] Installing Python dependencies..."
-pip install -q torchvision xformers pypose munch einops opencv-python-headless scipy colorama pandas
+pip install -q torchvision xformers pypose munch einops opencv-python-headless scipy colorama pandas setuptools
 
 # 构建 DBoW3Py（回环检测组件）
 echo ""
 echo "[1b/5] Building DBoW3Py (loop detection)..."
-if [ -d DBoW3Py ]; then
-    echo "  DBoW3Py directory found, building..."
+# 先初始化子模块（DBoW3Py 是原始仓库的 git submodule）
+if [ -f .gitmodules ]; then
+    echo "  Initializing git submodules..."
+    git submodule update --init --recursive 2>/dev/null || true
+fi
+
+if [ -f DBoW3Py/setup.py ]; then
+    echo "  Building DBoW3Py..."
     cd DBoW3Py && pip install -q --no-build-isolation . && cd ..
     echo "  Done."
 else
-    echo "  DBoW3Py directory not found (not a submodule)."
-    echo "  Attempting to clone..."
-    git clone --depth 1 https://github.com/dorian3d/DBoW3.git dbow3_clone 2>/dev/null
-    if [ -d dbow3_clone ]; then
-        cp -r dbow3_clone DBoW3Py
+    echo "  DBoW3Py/setup.py not found. Cloning from upstream..."
+    rm -rf DBoW3Py 2>/dev/null
+    git clone --depth 1 https://github.com/zhangganlin/vista-slam.git _tmp_clone 2>/dev/null
+    if [ -d _tmp_clone/DBoW3Py ]; then
+        cp -r _tmp_clone/DBoW3Py ./
         cd DBoW3Py && pip install -q --no-build-isolation . && cd ..
-        rm -rf dbow3_clone
+        rm -rf _tmp_clone
         echo "  Done."
     else
-        echo "  Will use fallback (simulated loop detection)."
+        echo "  Fallback: will use simulated loop detection."
+        rm -rf _tmp_clone 2>/dev/null
     fi
 fi
 echo "  Done."

@@ -34,11 +34,16 @@ from scipy.spatial.transform import Rotation
 # ============================================================
 def _patch_dbow3():
     """如果 DBoW3Py 不可用，替换回环检测器为 dummy 实现"""
+    _dbow_ok = False
     try:
         import DBoW3Py
-        return  # 可用，无需补丁
+        if hasattr(DBoW3Py, 'Vocabulary'):
+            _dbow_ok = True
     except ImportError:
         pass
+
+    if _dbow_ok:
+        return
 
     import vista_slam.loop_detector as _ld
     import vista_slam.slam as _slam
