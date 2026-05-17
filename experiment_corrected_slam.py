@@ -44,6 +44,43 @@ for _ in range(4):
         continue
     break
 
+# ============================================================
+# 【模块级补丁】DBoW3 缺失处理（Colab 环境下无此库）
+# ============================================================
+def _patch_dbow3():
+    try:
+        import DBoW3Py
+        if hasattr(DBoW3Py, 'Vocabulary'):
+            return
+    except ImportError:
+        pass
+    import sys
+    from types import ModuleType
+    _fake_dbow = ModuleType('DBoW3Py')
+    class _FakeVocab:
+        def load(self, *a, **kw): pass
+        def transform(self, *a, **kw): return None
+        def score(self, *a, **kw): return 0.0
+    _fake_dbow.Vocabulary = _FakeVocab
+    sys.modules['DBoW3Py'] = _fake_dbow
+    import vista_slam.loop_detector as _ld
+    import vista_slam.slam as _slam
+
+    class _DummyDetector:
+        def __init__(self, *a, **kw):
+            self.vocab = _FakeVocab()
+            self.bow_feats = []
+            self.loop_dist_min = 40
+            self.loop_nms = 40
+            self.loop_cand_thresh_neighbor = 5
+            self.orb = None
+        def compute_bow_feat(self, *a): return None
+        def detect_loop(self, *a, **kw): return []
+    _ld.LoopDetector = _DummyDetector
+    _slam.LoopDetector = _DummyDetector
+
+_patch_dbow3()
+
 from vista_slam.utils.slam_utils import FontColor, print_msg
 from vista_slam.slam import OnlineSLAM
 from vista_slam.eval.eval_traj import full_traj_eval
