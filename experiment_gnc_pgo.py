@@ -255,6 +255,8 @@ def run_slam_and_evaluate(rgb_path, gt_path, ckpt_path, vocab_path,
 
     dataset = SLAM_image_only(sorted(glob.glob(rgb_path))[:max_frames],
                               resolution=(224, 224))
+    if len(dataset) == 0:
+        raise FileNotFoundError(f"No images found at {rgb_path}")
 
     slam = OnlineSLAM(
         ckpt_path=ckpt_path, vocab_path=vocab_path, verbose=False,
