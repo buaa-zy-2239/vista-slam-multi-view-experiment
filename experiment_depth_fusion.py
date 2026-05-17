@@ -162,9 +162,10 @@ class MultiViewDepthFusion:
         # 5. 判断有效性
         u_proj = uv_proj[:, 0].view(self.H, self.W)
         v_proj = uv_proj[:, 1].view(self.H, self.W)
+        z_proj_2d = z_proj.view(self.H, self.W)
         valid = (u_proj >= 0) & (u_proj < self.W - 1) & \
                 (v_proj >= 0) & (v_proj < self.H - 1) & \
-                (z_proj > 0)
+                (z_proj_2d > 0)
 
         depth_proj = z_proj.view(self.H, self.W)
         return depth_proj, valid
@@ -247,18 +248,24 @@ def predict_pair(frontend, feat_i, pos_i, feat_j, pos_j, shape):
 # 评估指标
 # ============================================================
 def compute_depth_metrics(pred_depth, gt_depth, max_depth=5.0):
-    """计算深度评估指标"""
-    # 确保都是 2D [H, W]
+    """计算深度评估指标（先对齐尺度）"""
     if pred_depth.ndim == 3:
         pred_depth = pred_depth.squeeze()
     if gt_depth.ndim == 3:
         gt_depth = gt_depth.squeeze()
+
     mask = (gt_depth > 0) & (pred_depth > 0) & (gt_depth < max_depth)
     if mask.sum() < 100:
         return {}
 
     pred, gt = pred_depth[mask], gt_depth[mask]
-    diff = torch.abs(pred - gt)
+
+    # 【关键】对齐预测深度到真值尺度
+    # 用中位数比值估计尺度
+    scale = torch.median(gt) / torch.median(pred)
+    pred_aligned = pred * scale
+
+    diff = torch.abs(pred_aligned - gt)
     rel = diff / gt
 
     metrics = {
