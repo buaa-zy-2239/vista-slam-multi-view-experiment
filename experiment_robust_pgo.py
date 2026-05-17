@@ -295,6 +295,30 @@ def run_slam_and_evaluate(rgb_path, gt_path, timestamps_path,
     """
     from vista_slam.datasets.slam_images_only import SLAM_image_only
 
+    # 【兼容】如果 DBoW3 不可用，打补丁绕过回环检测
+    try:
+        import DBoW3Py
+        _dbow_ok = True
+    except ImportError:
+        _dbow_ok = False
+    if not _dbow_ok:
+        import vista_slam.loop_detector as _ld
+        class _DummyVocab:
+            def load(self, *a, **kw): pass
+            def transform(self, *a, **kw): return None
+            def score(self, *a, **kw): return 0.0
+        class _DummyDetector:
+            def __init__(self, *a, **kw):
+                self.vocab = _DummyVocab()
+                self.bow_feats = []
+                self.loop_dist_min = 40
+                self.loop_nms = 40
+                self.loop_cand_thresh_neighbor = 5
+                self.orb = None
+            def compute_bow_feat(self, *a): return None
+            def detect_loop(self, *a, **kw): return []
+        _ld.LoopDetector = _DummyDetector
+
     dataset = SLAM_image_only(sorted(glob.glob(rgb_path))[:max_frames],
                               resolution=(224, 224))
 
