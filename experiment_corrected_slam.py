@@ -83,7 +83,6 @@ _patch_dbow3()
 
 from vista_slam.utils.slam_utils import FontColor, print_msg
 from vista_slam.slam import OnlineSLAM
-from vista_slam.eval.eval_traj import full_traj_eval
 
 
 # ============================================================
@@ -378,18 +377,33 @@ def run_slam(cfg, image_paths=None, gt_path=None, dataset_folder=None,
 
 def evaluate_ate(pred_poses, gt_poses, output_dir, label=""):
     """
-    使用 evo 库进行标准 ATE 评估
+    使用 evo 库进行标准 ATE 评估（跳过 plot 避免 numpy 2.x 兼容问题）
+    如果 evo 不可用，回退到简易 Sim(3) 对齐
     """
-    plot_dir = os.path.join(output_dir, f"plots{label}")
-    os.makedirs(plot_dir, exist_ok=True)
+    import numpy as np
 
+    # 尝试用 evo 进行对齐和 APE 计算（跳过绘图）
     try:
-        _, _, r_a, t_a, s, ape_stats = full_traj_eval(
-            [np.asarray(p) for p in pred_poses],
-            [np.asarray(p) for p in gt_poses],
-            plot_dir, "trajectory"
+        from evo.core.trajectory import PoseTrajectory3D
+        from evo.core import sync, metrics
+
+        timestamps = list(range(len(pred_poses)))
+        traj_est = PoseTrajectory3D(
+            poses_se3=[np.asarray(p) for p in pred_poses],
+            timestamps=timestamps
         )
-        ate_rmse = ape_stats['rmse']
+        traj_ref = PoseTrajectory3D(
+            poses_se3=[np.asarray(p) for p in gt_poses],
+            timestamps=timestamps
+        )
+        traj_ref, traj_est = sync.associate_trajectories(traj_ref, traj_est)
+        r_a, t_a, s = traj_est.align(traj_ref, correct_scale=True)
+
+        ape_metric = metrics.APE(metrics.PoseRelation.translation_part)
+        ape_metric.process_data((traj_ref, traj_est))
+        ape_stats = ape_metric.get_all_statistics()
+
+        ate_rmse = float(ape_stats['rmse'])
         print_msg(f"  评估结果: ATE RMSE={ate_rmse:.4f}m, "
                   f"scale={s:.4f}, rot={np.degrees(r_a):.2f}deg",
                   color=FontColor.PoseGraphOpt)
