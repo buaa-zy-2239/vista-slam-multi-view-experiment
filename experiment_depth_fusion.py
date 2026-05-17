@@ -64,9 +64,26 @@ def load_frames(glob_pattern, max_frames):
         transforms.Normalize(mean=[0.5]*3, std=[0.5]*3),
     ])
     frames = []
+    names = []
     for p in paths:
         frames.append(t(Image.open(p).convert('RGB')).unsqueeze(0))
-    return frames, [Path(p).name for p in paths]
+        names.append(Path(p).name)
+    return frames, names
+
+
+def load_depth(glob_pattern, max_frames, target_size=(224, 224)):
+    """加载 TUM 深度图（16位PNG，单位毫米），归一化到米"""
+    paths = sorted(glob.glob(glob_pattern))[:max_frames]
+    depth_maps = []
+    from PIL import Image
+    from torchvision import transforms
+    resize = transforms.Resize(target_size)
+    for p in paths:
+        d = torch.from_numpy(np.array(Image.open(p))).float() / 1000.0  # 毫米→米
+        d = resize(d.unsqueeze(0).unsqueeze(0)).squeeze()  # [H, W]
+        d[d > 10.0] = 0.0  # 截断远距离
+        depth_maps.append(d)
+    return depth_maps
 
 
 # ============================================================
@@ -231,6 +248,11 @@ def predict_pair(frontend, feat_i, pos_i, feat_j, pos_j, shape):
 # ============================================================
 def compute_depth_metrics(pred_depth, gt_depth, max_depth=5.0):
     """计算深度评估指标"""
+    # 确保都是 2D [H, W]
+    if pred_depth.ndim == 3:
+        pred_depth = pred_depth.squeeze()
+    if gt_depth.ndim == 3:
+        gt_depth = gt_depth.squeeze()
     mask = (gt_depth > 0) & (pred_depth > 0) & (gt_depth < max_depth)
     if mask.sum() < 100:
         return {}
@@ -274,7 +296,7 @@ def main():
 
     print_msg(f"Loading frames...", color=FontColor.INFO)
     rgb_frames, names = load_frames(args.rgb, args.max_frames)
-    depth_frames, _ = load_frames(args.depth, args.max_frames)
+    depth_frames = load_depth(args.depth, args.max_frames)  # [H, W] 单位米
     N = min(len(rgb_frames), len(depth_frames))
     print_msg(f"Loaded {N} frames", color=FontColor.INFO)
 
@@ -330,7 +352,7 @@ def main():
 
     orig_metrics = []
     for i in range(N):
-        gt = depth_frames[i].squeeze()
+        gt = depth_frames[i]  # [H, W] 已在 load_depth 中处理
         m = compute_depth_metrics(depths[i], gt)
         if m:
             orig_metrics.append(m)
@@ -392,7 +414,7 @@ def main():
 
     fused_metrics = []
     for i in range(N):
-        gt = depth_frames[i].squeeze()
+        gt = depth_frames[i]
         m = compute_depth_metrics(fused_depths[i], gt)
         if m:
             fused_metrics.append(m)
