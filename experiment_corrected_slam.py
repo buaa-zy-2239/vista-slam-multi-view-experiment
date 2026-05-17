@@ -390,19 +390,24 @@ def load_config(config_path, dataset_folder=None, output_dir=None):
         cfg['output_dir'] = output_dir
     cfg = munch.Munch(cfg)
 
-    # 检查预训练权重和词袋文件（支持 experiment_repo 子目录模式）
+    # 检查预训练权重和词袋文件（支持 Colab 子目录/父目录等常见布局）
     for key in ['STA_pretrain_path', 'vocab_path']:
         path = cfg.get(key, '')
         if not os.path.exists(path):
             alt_paths = [
                 os.path.join(_script_dir, path),
                 os.path.join(os.path.dirname(_script_dir), path),
+                os.path.join(os.path.dirname(_script_dir), 'pretrains', os.path.basename(path)),
             ]
+            found = False
             for alt_path in alt_paths:
                 if os.path.exists(alt_path):
                     cfg[key] = alt_path
                     print_msg(f"  使用替代路径: {alt_path}", color=FontColor.INFO)
+                    found = True
                     break
+            if not found:
+                print_msg(f"  警告: 未找到 {key} ({path})，请确认文件路径", color=FontColor.WARNING)
 
     return cfg
 

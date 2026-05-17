@@ -1,0 +1,29 @@
+device: "cuda"
+verbose: False
+
+rerun_vis: False
+rerun_url: rerun+http://127.0.0.1:9876/proxy
+rerun_save: False
+
+output_dir: output/tumrgbd
+
+STA_pretrain_path: pretrains/frontend_sta_weights.pth
+vocab_path: pretrains/ORBvoc.txt
+
+random_seed: 43
+max_view_num: 400
+
+neighbor_edge_num: 3
+loop_edge_num: 2
+loop_dist_min: 40
+loop_nms: 40
+loop_cand_thresh_neighbor: 5
+
+point_conf_thres: 4.2
+rel_pose_thres: 0.75
+
+keyframe_detection: "stride"
+stride: 3
+flow_thres: 5.0
+
+pgo_every: 500
